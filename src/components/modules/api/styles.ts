@@ -1,11 +1,14 @@
+import { Styles } from '../../../../types/api';
 import Module from '../../__module';
-import {Styles} from '../../../../types/api';
 
 /**
  *
  */
 export default class StylesAPI extends Module {
-  get classes(): Styles {
+  /**
+   * Exported classes
+   */
+  public get classes(): Styles {
     return {
       /**
        * Base Block styles

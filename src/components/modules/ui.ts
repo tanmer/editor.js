@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/no-undefined-types */
 /**
  * Prebuilded sprite of SVG icons
  */
@@ -10,10 +11,21 @@ import sprite from '../../../dist/sprite.svg';
  */
 import Module from '../__module';
 import $ from '../dom';
-import _ from '../utils';
+import * as _ from '../utils';
 
 import Selection from '../selection';
 import Block from '../block';
+import Flipper from '../flipper';
+
+/**
+ * HTML Elements used for UI
+ */
+interface UINodes {
+  holder: HTMLElement;
+  wrapper: HTMLElement;
+  redactor: HTMLElement;
+  loader: HTMLElement;
+}
 
 /**
  * @class
@@ -27,35 +39,37 @@ import Block from '../block';
  *
  * @typedef {UI} UI
  * @property {EditorConfig} config   - editor configuration {@link EditorJS#configuration}
- * @property {Object} Editor         - available editor modules {@link EditorJS#moduleInstances}
- * @property {Object} nodes          -
+ * @property {object} Editor         - available editor modules {@link EditorJS#moduleInstances}
+ * @property {object} nodes          -
  * @property {Element} nodes.holder  - element where we need to append redactor
  * @property {Element} nodes.wrapper  - <codex-editor>
  * @property {Element} nodes.redactor - <ce-redactor>
  */
-export default class UI extends Module {
-
+export default class UI extends Module<UINodes> {
   /**
    * Editor.js UI CSS class names
-   * @return {{editorWrapper: string, editorZone: string}}
+   *
+   * @returns {{editorWrapper: string, editorZone: string}}
    */
   public get CSS(): {
-    editorWrapper: string, editorWrapperNarrow: string, editorZone: string, editorZoneHidden: string,
-    editorLoader: string, editorEmpty: string,
-  } {
+    editorWrapper: string; editorWrapperNarrow: string; editorZone: string; editorZoneHidden: string;
+    editorLoader: string; editorEmpty: string; editorRtlFix: string;
+    } {
     return {
-      editorWrapper    : 'codex-editor',
-      editorWrapperNarrow : 'codex-editor--narrow',
-      editorZone       : 'codex-editor__redactor',
-      editorZoneHidden : 'codex-editor__redactor--hidden',
-      editorLoader     : 'codex-editor__loader',
-      editorEmpty      : 'codex-editor--empty',
+      editorWrapper: 'codex-editor',
+      editorWrapperNarrow: 'codex-editor--narrow',
+      editorZone: 'codex-editor__redactor',
+      editorZoneHidden: 'codex-editor__redactor--hidden',
+      editorLoader: 'codex-editor__loader',
+      editorEmpty: 'codex-editor--empty',
+      editorRtlFix: 'codex-editor--rtl',
     };
   }
 
   /**
    * Return Width of center column of Editor
-   * @return {DOMRect}
+   *
+   * @returns {DOMRect}
    */
   public get contentRect(): DOMRect {
     if (this.contentRectCache) {
@@ -82,28 +96,22 @@ export default class UI extends Module {
 
   /**
    * Flag that became true on mobile viewport
+   *
    * @type {boolean}
    */
-  public isMobile: boolean = false;
-
-  /**
-   * HTML Elements used for UI
-   */
-  public nodes: { [key: string]: HTMLElement } = {
-    holder: null,
-    wrapper: null,
-    redactor: null,
-  };
+  public isMobile = false;
 
   /**
    * Cache for center column rectangle info
    * Invalidates on window resize
+   *
    * @type {DOMRect}
    */
   private contentRectCache: DOMRect = undefined;
 
   /**
    * Handle window resize only when it finished
+   *
    * @type {() => void}
    */
   private resizeDebouncer: () => void = _.debounce(() => {
@@ -139,7 +147,7 @@ export default class UI extends Module {
     /**
      * Make main UI elements
      */
-    await this.make();
+    this.make();
 
     /**
      * Loader for rendering process
@@ -149,39 +157,47 @@ export default class UI extends Module {
     /**
      * Append SVG sprite
      */
-    await this.appendSVGSprite();
-
-    /**
-     * Make toolbar
-     */
-    await this.Editor.Toolbar.make();
-
-    /**
-     * Make the Converter tool holder
-     */
-    await this.Editor.ConversionToolbar.make();
-
-    /**
-     * Make the Inline toolbar
-     */
-    await this.Editor.InlineToolbar.make();
+    this.appendSVGSprite();
 
     /**
      * Load and append CSS
      */
-    await this.loadStyles();
+    this.loadStyles();
+  }
 
+  /**
+   * Toggle read-only state
+   *
+   * If readOnly is true:
+   *  - removes all listeners from main UI module elements
+   *
+   * if readOnly is false:
+   *  - enables all listeners to UI module elements
+   *
+   * @param {boolean} readOnlyEnabled - "read only" state
+   */
+  public toggleReadOnly(readOnlyEnabled: boolean): void {
     /**
-     * Bind events for the UI elements
+     * Prepare components based on read-only state
      */
-    await this.bindEvents();
+    if (!readOnlyEnabled) {
+      /**
+       * Unbind all events
+       */
+      this.enableModuleBindings();
+    } else {
+      /**
+       * Bind events for the UI elements
+       */
+      this.disableModuleBindings();
+    }
   }
 
   /**
    * Check if Editor is empty and set CSS class to wrapper
    */
   public checkEmptiness(): void {
-    const {BlockManager} = this.Editor;
+    const { BlockManager } = this.Editor;
 
     this.nodes.wrapper.classList.toggle(this.CSS.editorEmpty, BlockManager.isEditorEmpty);
   }
@@ -189,12 +205,25 @@ export default class UI extends Module {
   /**
    * Check if one of Toolbar is opened
    * Used to prevent global keydowns (for example, Enter) conflicts with Enter-on-toolbar
-   * @return {boolean}
+   *
+   * @returns {boolean}
    */
-  public get someToolbarOpened() {
+  public get someToolbarOpened(): boolean {
     const { Toolbox, BlockSettings, InlineToolbar, ConversionToolbar } = this.Editor;
 
     return BlockSettings.opened || InlineToolbar.opened || ConversionToolbar.opened || Toolbox.opened;
+  }
+
+  /**
+   * Check for some Flipper-buttons is under focus
+   */
+  public get someFlipperButtonFocused(): boolean {
+    return Object.entries(this.Editor).filter(([moduleName, moduleClass]) => {
+      return moduleClass.flipper instanceof Flipper;
+    })
+      .some(([moduleName, moduleClass]) => {
+        return moduleClass.flipper.currentItem;
+      });
   }
 
   /**
@@ -205,19 +234,31 @@ export default class UI extends Module {
   }
 
   /**
+   * Close all Editor's toolbars
+   */
+  public closeAllToolbars(): void {
+    const { Toolbox, BlockSettings, InlineToolbar, ConversionToolbar } = this.Editor;
+
+    BlockSettings.close();
+    InlineToolbar.close();
+    ConversionToolbar.close();
+    Toolbox.close();
+  }
+
+  /**
    * Check for mobile mode and cache a result
    */
-  private checkIsMobile() {
+  private checkIsMobile(): void {
     this.isMobile = window.innerWidth < 650;
   }
 
   /**
    * Makes Editor.js interface
-   * @return {Promise<void>}
    */
-  private async make(): Promise<void> {
+  private make(): void {
     /**
      * Element where we need to append Editor.js
+     *
      * @type {Element}
      */
     this.nodes.holder = $.getHolder(this.config.holder);
@@ -225,7 +266,10 @@ export default class UI extends Module {
     /**
      * Create and save main UI elements
      */
-    this.nodes.wrapper  = $.make('div', this.CSS.editorWrapper);
+    this.nodes.wrapper = $.make('div', [
+      this.CSS.editorWrapper,
+      ...(this.isRtl ? [ this.CSS.editorRtlFix ] : []),
+    ]);
     this.nodes.redactor = $.make('div', this.CSS.editorZone);
 
     /**
@@ -242,7 +286,6 @@ export default class UI extends Module {
 
     this.nodes.wrapper.appendChild(this.nodes.redactor);
     this.nodes.holder.appendChild(this.nodes.wrapper);
-
   }
 
   /**
@@ -252,12 +295,22 @@ export default class UI extends Module {
     /**
      * Load CSS
      */
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const styles = require('../../styles/main.css');
+    const styleTagId = 'editor-js-styles';
+
+    /**
+     * Do not append styles again if they are already on the page
+     */
+    if ($.get(styleTagId)) {
+      return;
+    }
 
     /**
      * Make tag
      */
     const tag = $.make('style', null, {
+      id: styleTagId,
       textContent: styles.toString(),
     });
 
@@ -270,30 +323,46 @@ export default class UI extends Module {
   /**
    * Bind events on the Editor.js interface
    */
-  private bindEvents(): void {
-    this.Editor.Listeners.on(
-      this.nodes.redactor,
-      'click',
-      (event) => this.redactorClicked(event as MouseEvent),
-      false,
-    );
-    this.Editor.Listeners.on(document, 'keydown', (event) => this.documentKeydown(event as KeyboardEvent), true);
-    this.Editor.Listeners.on(document, 'click', (event) => this.documentClicked(event as MouseEvent), true);
+  private enableModuleBindings(): void {
+    this.readOnlyMutableListeners.on(this.nodes.redactor, 'click', (event: MouseEvent) => {
+      this.redactorClicked(event);
+    }, false);
+
+    this.readOnlyMutableListeners.on(this.nodes.redactor, 'mousedown', (event: MouseEvent | TouchEvent) => {
+      this.documentTouched(event);
+    }, true);
+
+    this.readOnlyMutableListeners.on(this.nodes.redactor, 'touchstart', (event: MouseEvent | TouchEvent) => {
+      this.documentTouched(event);
+    }, true);
+
+    this.readOnlyMutableListeners.on(document, 'keydown', (event: KeyboardEvent) => {
+      this.documentKeydown(event);
+    }, true);
+
+    this.readOnlyMutableListeners.on(document, 'click', (event: MouseEvent) => {
+      this.documentClicked(event);
+    }, true);
 
     /**
-     * Handle selection change on mobile devices for the Inline Toolbar support
+     * Handle selection change to manipulate Inline Toolbar appearance
      */
-    if (_.isTouchSupported()) {
-      this.Editor.Listeners.on(document, 'selectionchange', (event) => {
-        this.selectionChanged(event as Event);
-      }, true);
-    }
+    this.readOnlyMutableListeners.on(document, 'selectionchange', (event: Event) => {
+      this.selectionChanged(event);
+    }, true);
 
-    this.Editor.Listeners.on(window, 'resize', () => {
+    this.readOnlyMutableListeners.on(window, 'resize', () => {
       this.resizeDebouncer();
     }, {
       passive: true,
     });
+  }
+
+  /**
+   * Unbind events on the Editor.js interface
+   */
+  private disableModuleBindings(): void {
+    this.readOnlyMutableListeners.clearAll();
   }
 
   /**
@@ -313,16 +382,23 @@ export default class UI extends Module {
 
   /**
    * All keydowns on document
-   * @param {Event} event
+   *
+   * @param {KeyboardEvent} event - keyboard event
    */
   private documentKeydown(event: KeyboardEvent): void {
     switch (event.keyCode) {
       case _.keyCodes.ENTER:
         this.enterPressed(event);
         break;
+
       case _.keyCodes.BACKSPACE:
         this.backspacePressed(event);
         break;
+
+      case _.keyCodes.ESC:
+        this.escapePressed(event);
+        break;
+
       default:
         this.defaultBehaviour(event);
         break;
@@ -331,12 +407,22 @@ export default class UI extends Module {
 
   /**
    * Ignore all other document's keydown events
-   * @param {KeyboardEvent} event
+   *
+   * @param {KeyboardEvent} event - keyboard event
    */
   private defaultBehaviour(event: KeyboardEvent): void {
+    const { currentBlock } = this.Editor.BlockManager;
     const keyDownOnEditor = (event.target as HTMLElement).closest(`.${this.CSS.editorWrapper}`);
-    const {currentBlock} = this.Editor.BlockManager;
     const isMetaKey = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+
+    /**
+     * When some block is selected, but the caret is not set inside the editor, treat such keydowns as keydown on selected block.
+     */
+    if (currentBlock !== undefined && keyDownOnEditor === null) {
+      this.Editor.BlockEvents.keydown(event);
+
+      return;
+    }
 
     /**
      * Ignore keydowns on editor and meta keys
@@ -357,14 +443,19 @@ export default class UI extends Module {
   }
 
   /**
-   * @param {KeyboardEvent} event
+   * @param {KeyboardEvent} event - keyboard event
    */
   private backspacePressed(event: KeyboardEvent): void {
-    const {BlockManager, BlockSelection, Caret} = this.Editor;
+    const { BlockManager, BlockSelection, Caret } = this.Editor;
 
-    if (BlockSelection.anyBlockSelected) {
+    /**
+     * If any block selected and selection doesn't exists on the page (that means no other editable element is focused),
+     * remove selected blocks
+     */
+    if (BlockSelection.anyBlockSelected && !Selection.isSelectionExists) {
       const selectionPositionIndex = BlockManager.removeSelectedBlocks();
-      Caret.setToBlock(BlockManager.insertInitialBlockAtIndex(selectionPositionIndex, true), Caret.positions.START);
+
+      Caret.setToBlock(BlockManager.insertDefaultBlockAtIndex(selectionPositionIndex, true), Caret.positions.START);
 
       /** Clear selection */
       BlockSelection.clearSelection(event);
@@ -374,23 +465,51 @@ export default class UI extends Module {
        * Manipulation with BlockSelections is handled in global backspacePress because they may occur
        * with CMD+A or RectangleSelection and they can be handled on document event
        */
+      event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
     }
   }
 
   /**
+   * Escape pressed
+   * If some of Toolbar components are opened, then close it otherwise close Toolbar
+   *
+   * @param {Event} event - escape keydown event
+   */
+  private escapePressed(event): void {
+    /**
+     * Clear blocks selection by ESC
+     */
+    this.Editor.BlockSelection.clearSelection(event);
+
+    if (this.Editor.Toolbox.opened) {
+      this.Editor.Toolbox.close();
+    } else if (this.Editor.BlockSettings.opened) {
+      this.Editor.BlockSettings.close();
+    } else if (this.Editor.ConversionToolbar.opened) {
+      this.Editor.ConversionToolbar.close();
+    } else if (this.Editor.InlineToolbar.opened) {
+      this.Editor.InlineToolbar.close();
+    } else {
+      this.Editor.Toolbar.close();
+    }
+  }
+
+  /**
    * Enter pressed on document
-   * @param event
+   *
+   * @param {KeyboardEvent} event - keyboard event
    */
   private enterPressed(event: KeyboardEvent): void {
-    const { BlockManager, BlockSelection, Caret } = this.Editor;
+    const { BlockManager, BlockSelection } = this.Editor;
     const hasPointerToBlock = BlockManager.currentBlockIndex >= 0;
 
-    if (BlockSelection.anyBlockSelected) {
-      const selectionPositionIndex = BlockManager.removeSelectedBlocks();
-      Caret.setToBlock(BlockManager.insertInitialBlockAtIndex(selectionPositionIndex, true), Caret.positions.START);
-
+    /**
+     * If any block selected and selection doesn't exists on the page (that means no other editable element is focused),
+     * remove selected blocks
+     */
+    if (BlockSelection.anyBlockSelected && !Selection.isSelectionExists) {
       /** Clear selection */
       BlockSelection.clearSelection(event);
 
@@ -402,6 +521,7 @@ export default class UI extends Module {
       event.preventDefault();
       event.stopImmediatePropagation();
       event.stopPropagation();
+
       return;
     }
 
@@ -414,7 +534,7 @@ export default class UI extends Module {
      */
     if (!this.someToolbarOpened && hasPointerToBlock && (event.target as HTMLElement).tagName === 'BODY') {
       /**
-       * Insert initial typed Block
+       * Insert the default typed Block
        */
       const newBlock = this.Editor.BlockManager.insert();
 
@@ -437,7 +557,8 @@ export default class UI extends Module {
 
   /**
    * All clicks on document
-   * @param {MouseEvent} event - Click
+   *
+   * @param {MouseEvent} event - Click event
    */
   private documentClicked(event: MouseEvent): void {
     /**
@@ -464,59 +585,39 @@ export default class UI extends Module {
       this.Editor.BlockManager.dropPointer();
       this.Editor.InlineToolbar.close();
       this.Editor.Toolbar.close();
-      this.Editor.BlockSelection.clearSelection(event);
       this.Editor.ConversionToolbar.close();
     }
 
-    if (Selection.isAtEditor) {
-      /**
-       * Focus clicked Block.
-       * Workaround case when user clicks on the bottom of editor
-       */
-      if (Selection.anchorNode === this.nodes.redactor) {
-        this.Editor.Caret.setToTheLastBlock();
-      } else {
-        this.Editor.BlockManager.setCurrentBlockByChildNode(Selection.anchorNode);
-      }
+    /**
+     * Clear Selection if user clicked somewhere
+     */
+    if (!this.Editor.CrossBlockSelection.isCrossBlockSelectionStarted) {
+      this.Editor.BlockSelection.clearSelection(event);
     }
   }
 
   /**
-   * All clicks on the redactor zone
+   * First touch on editor
+   * Fired before click
    *
-   * @param {MouseEvent} event
+   * Used to change current block — we need to do it before 'selectionChange' event.
+   * Also:
+   * - Move and show the Toolbar
+   * - Set a Caret
    *
-   * @description
-   * 1. Save clicked Block as a current {@link BlockManager#currentNode}
-   *      it uses for the following:
-   *      - add CSS modifier for the selected Block
-   *      - on Enter press, we make a new Block under that
-   *
-   * 2. Move and show the Toolbar
-   *
-   * 3. Set a Caret
-   *
-   * 4. By clicks on the Editor's bottom zone:
-   *      - if last Block is empty, set a Caret to this
-   *      - otherwise, add a new empty Block and set a Caret to that
-   *
-   * 5. Hide the Inline Toolbar
-   *
-   * @see selectClickedBlock
-   *
+   * @param {MouseEvent | TouchEvent} event - touch or mouse event
    */
-  private redactorClicked(event: MouseEvent): void {
-    if (!Selection.isCollapsed) {
-      return;
-    }
-
+  private documentTouched(event: MouseEvent | TouchEvent): void {
     let clickedNode = event.target as HTMLElement;
 
     /**
      * If click was fired is on Editor`s wrapper, try to get clicked node by elementFromPoint method
      */
     if (clickedNode === this.nodes.redactor) {
-      clickedNode = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement;
+      const clientX = event instanceof MouseEvent ? event.clientX : event.touches[0].clientX;
+      const clientY = event instanceof MouseEvent ? event.clientY : event.touches[0].clientY;
+
+      clickedNode = document.elementFromPoint(clientX, clientY) as HTMLElement;
     }
 
     /**
@@ -541,9 +642,6 @@ export default class UI extends Module {
       }
     }
 
-    event.stopImmediatePropagation();
-    event.stopPropagation();
-
     /**
      * Move and open toolbar
      */
@@ -553,19 +651,62 @@ export default class UI extends Module {
      * Hide the Plus Button
      */
     this.Editor.Toolbar.plusButton.hide();
+  }
+
+  /**
+   * All clicks on the redactor zone
+   *
+   * @param {MouseEvent} event - click event
+   *
+   * @description
+   * - By clicks on the Editor's bottom zone:
+   *      - if last Block is empty, set a Caret to this
+   *      - otherwise, add a new empty Block and set a Caret to that
+   */
+  private redactorClicked(event: MouseEvent): void {
+    if (!Selection.isCollapsed) {
+      return;
+    }
+
+    const stopPropagation = (): void => {
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+    };
+
+    /**
+     * case when user clicks on anchor element
+     * if it is clicked via ctrl key, then we open new window with url
+     */
+    const element = event.target as Element;
+    const ctrlKey = event.metaKey || event.ctrlKey;
+
+    if ($.isAnchor(element) && ctrlKey) {
+      stopPropagation();
+
+      const href = element.getAttribute('href');
+      const validUrl = _.getValidUrl(href);
+
+      _.openTab(validUrl);
+
+      return;
+    }
 
     if (!this.Editor.BlockManager.currentBlock) {
+      stopPropagation();
+
       this.Editor.BlockManager.insert();
     }
 
     /**
      * Show the Plus Button if:
-     * - Block is an initial-block (Text)
+     * - Block is an default-block (Text)
      * - Block is empty
      */
-    const isInitialBlock = this.Editor.Tools.isInitial(this.Editor.BlockManager.currentBlock.tool);
+    const isDefaultBlock = this.Editor.Tools.isDefault(this.Editor.BlockManager.currentBlock.tool);
 
-    if (isInitialBlock) {
+    if (isDefaultBlock) {
+      stopPropagation();
+
       /**
        * Check isEmpty only for paragraphs to prevent unnecessary tree-walking on Tools with many nodes (for ex. Table)
        */
@@ -580,20 +721,46 @@ export default class UI extends Module {
   /**
    * Handle selection changes on mobile devices
    * Uses for showing the Inline Toolbar
-   * @param {Event} event
+   *
+   * @param {Event} event - selection event
    */
   private selectionChanged(event: Event): void {
-    const focusedElement = Selection.anchorElement as Element;
+    const { CrossBlockSelection, BlockSelection } = this.Editor;
+    const focusedElement = Selection.anchorElement;
+
+    if (CrossBlockSelection.isCrossBlockSelectionStarted) {
+      // Removes all ranges when any Block is selected
+      if (BlockSelection.anyBlockSelected) {
+        Selection.get().removeAllRanges();
+      }
+    }
 
     /**
      * Event can be fired on clicks at the Editor elements, for example, at the Inline Toolbar
      * We need to skip such firings
      */
     if (!focusedElement || !focusedElement.closest(`.${Block.CSS.content}`)) {
+      /**
+       * If new selection is not on Inline Toolbar, we need to close it
+       */
+      if (!this.Editor.InlineToolbar.containsNode(focusedElement)) {
+        this.Editor.InlineToolbar.close();
+      }
+
       return;
     }
 
-    this.Editor.InlineToolbar.tryToShow();
+    /**
+     * Set current block when entering to Editor.js by tab key
+     */
+    if (!this.Editor.BlockManager.currentBlock) {
+      this.Editor.BlockManager.setCurrentBlockByChildNode(focusedElement);
+    }
+
+    /**
+     * @todo add debounce
+     */
+    this.Editor.InlineToolbar.tryToShow(true);
   }
 
   /**

@@ -1,11 +1,12 @@
 import {ToolConstructable, ToolSettings} from '../tools';
-import {OutputData} from '../index';
+import {API, LogLevels, OutputData} from '../index';
 import {SanitizerConfig} from './sanitizer-config';
+import {I18nConfig} from './i18n-config';
 
 export interface EditorConfig {
   /**
    * Element where Editor will be append
-   * @deprecated property will be removed in next major release, use holder instead
+   * @deprecated property will be removed in the next major release, use holder instead
    */
   holderId?: string | HTMLElement;
 
@@ -23,6 +24,13 @@ export interface EditorConfig {
    * This Tool will be used as default
    * Name should be equal to one of Tool`s keys of passed tools
    * If not specified, Paragraph Tool will be used
+   */
+  defaultBlock?: string;
+
+  /**
+   * @deprecated
+   * This property will be deprecated in the next major release.
+   * Use the 'defaultBlock' property instead.
    */
   initialBlock?: string;
 
@@ -58,12 +66,33 @@ export interface EditorConfig {
   minHeight?: number;
 
   /**
+   * Editors log level (how many logs you want to see)
+   */
+  logLevel?: LogLevels;
+
+  /**
+   * Enable read-only mode
+   */
+  readOnly?: boolean;
+
+  /**
+   * Internalization config
+   */
+  i18n?: I18nConfig;
+
+  /**
    * Fires when Editor is ready to work
    */
   onReady?(): void;
 
   /**
    * Fires when something changed in DOM
+   * @param {API} api - editor.js api
    */
-  onChange?(): void;
+  onChange?(api: API): void;
+
+  /**
+   * Defines default toolbar for all tools.
+   */
+  inlineToolbar?: string[]|boolean;
 }

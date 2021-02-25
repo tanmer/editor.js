@@ -1,10 +1,25 @@
 import $ from '../../dom';
-import {BlockTool, BlockToolData} from '../../../../types';
+import { API, BlockTool, BlockToolData, BlockToolConstructorOptions } from '../../../../types';
 
+export interface StubData extends BlockToolData {
+  title: string;
+  savedData: BlockToolData;
+}
+
+/**
+ * This tool will be shown in place of a block without corresponding plugin
+ * It will store its data inside and pass it back with article saving
+ */
 export default class Stub implements BlockTool {
   /**
+   * Notify core that tool supports read-only mode
+   */
+  public static isReadOnlySupported = true;
+
+  /**
    * Stub styles
-   * @type {{wrapper: string; info: string; title: string; subtitle: string}}
+   *
+   * @type {{wrapper: string, info: string, title: string, subtitle: string}}
    */
   private CSS = {
     wrapper: 'ce-stub',
@@ -17,6 +32,11 @@ export default class Stub implements BlockTool {
    * Main stub wrapper
    */
   private readonly wrapper: HTMLElement;
+
+  /**
+   * Editor.js API
+   */
+  private readonly api: API;
 
   /**
    * Stub title — tool name
@@ -33,9 +53,15 @@ export default class Stub implements BlockTool {
    */
   private readonly savedData: BlockToolData;
 
-  constructor({data, config, api}) {
-    this.title = data.title || 'Error';
-    this.subtitle = 'The block can not be displayed correctly.';
+  /**
+   * @param options - constructor options
+   * @param options.data - stub tool data
+   * @param options.api - Editor.js API
+   */
+  constructor({ data, api }: BlockToolConstructorOptions<StubData>) {
+    this.api = api;
+    this.title = data.title || this.api.i18n.t('Error');
+    this.subtitle = this.api.i18n.t('The block can not be displayed correctly.');
     this.savedData = data.savedData;
 
     this.wrapper = this.make();
@@ -43,7 +69,8 @@ export default class Stub implements BlockTool {
 
   /**
    * Returns stub holder
-   * @return {HTMLElement}
+   *
+   * @returns {HTMLElement}
    */
   public render(): HTMLElement {
     return this.wrapper;
@@ -51,7 +78,8 @@ export default class Stub implements BlockTool {
 
   /**
    * Return original Tool data
-   * @return {BlockToolData}
+   *
+   * @returns {BlockToolData}
    */
   public save(): BlockToolData {
     return this.savedData;
@@ -59,7 +87,8 @@ export default class Stub implements BlockTool {
 
   /**
    * Create Tool html markup
-   * @return {HTMLElement}
+   *
+   * @returns {HTMLElement}
    */
   private make(): HTMLElement {
     const wrapper = $.make('div', this.CSS.wrapper);

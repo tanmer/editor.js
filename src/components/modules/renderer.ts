@@ -1,7 +1,6 @@
 import Module from '../__module';
-import _, {ChainData} from '../utils';
-import {BlockToolData} from '../../../types';
-import {BlockToolConstructable} from '../../../types/tools';
+import * as _ from '../utils';
+import { BlockToolConstructable, OutputBlockData } from '../../../types';
 
 /**
  * Editor.js Renderer Module
@@ -13,9 +12,9 @@ import {BlockToolConstructable} from '../../../types/tools';
  */
 export default class Renderer extends Module {
   /**
-   * @typedef {Object} RendererBlocks
-   * @property {String} type - tool name
-   * @property {Object} data - tool data
+   * @typedef {object} RendererBlocks
+   * @property {string} type - tool name
+   * @property {object} data - tool data
    */
 
   /**
@@ -40,12 +39,13 @@ export default class Renderer extends Module {
 
   /**
    * Make plugin blocks from array of plugin`s data
-   * @param {RendererBlocks[]} blocks
+   *
+   * @param {OutputBlockData[]} blocks - blocks to render
    */
-  public async render(blocks: BlockToolData[]): Promise<void> {
-    const chainData = blocks.map((block) => ({function: () => this.insertBlock(block)}));
+  public async render(blocks: OutputBlockData[]): Promise<void> {
+    const chainData = blocks.map((block) => ({ function: (): Promise<void> => this.insertBlock(block) }));
 
-    const sequence = await _.sequence(chainData as ChainData[]);
+    const sequence = await _.sequence(chainData as _.ChainData[]);
 
     this.Editor.UI.checkEmptiness();
 
@@ -57,25 +57,26 @@ export default class Renderer extends Module {
    * Add plugin instance to BlockManager
    * Insert block to working zone
    *
-   * @param {Object} item
+   * @param {object} item - Block data to insert
+   *
    * @returns {Promise<void>}
-   * @private
    */
-  public async insertBlock(item): Promise<void> {
+  public async insertBlock(item: OutputBlockData): Promise<void> {
     const { Tools, BlockManager } = this.Editor;
     const tool = item.type;
     const data = item.data;
-    const settings = item.settings;
 
     if (tool in Tools.available) {
       try {
-        BlockManager.insert(tool, data, settings);
+        BlockManager.insert({
+          tool,
+          data,
+        });
       } catch (error) {
         _.log(`Block «${tool}» skipped because of plugins error`, 'warn', data);
         throw Error(error);
       }
     } else {
-
       /** If Tool is unavailable, create stub Block for it */
       const stubData = {
         savedData: {
@@ -89,10 +90,13 @@ export default class Renderer extends Module {
         const toolToolboxSettings = (Tools.unavailable[tool] as BlockToolConstructable).toolbox;
         const userToolboxSettings = Tools.getToolSettings(tool).toolbox;
 
-        stubData.title = toolToolboxSettings.title || userToolboxSettings.title || stubData.title;
+        stubData.title = toolToolboxSettings.title || (userToolboxSettings && userToolboxSettings.title) || stubData.title;
       }
 
-      const stub = BlockManager.insert(Tools.stubTool, stubData, settings);
+      const stub = BlockManager.insert({
+        tool: Tools.stubTool,
+        data: stubData,
+      });
 
       stub.stretched = true;
 

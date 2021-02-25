@@ -12,11 +12,12 @@ Each Tool should have an installation guide.
 
 Each Tool's instance called with an params object.
 
-| Param  | Type                | Description                                     |
-| ------ | ------------------- | ----------------------------------------------- |
-| api    | [`IAPI`][iapi-link] | Editor.js's API methods                      |
-| config | `object`            | Special configuration params passed in «config» |
-| data   | `object`            | Data to be rendered in this Tool                |
+| Param  | Type                                                   | Description                                     |
+| ------ | ------------------------------------------------------ | ----------------------------------------------- |
+| api    | [`IAPI`](../types/index.d.ts)                          | Editor.js's API methods                         |
+| config | [`ToolConfig`](../types/tools/tool-config.d.ts)        | Special configuration params passed in «config» |
+| data   | [`BlockToolData`](../types/tools/block-tool-data.d.ts) | Data to be rendered in this Tool                |
+| block  | [`BlockAPI`](../types/api/block.d.ts)                  | Block's API methods                             |
 
 [iapi-link]: ../src/types-internal/api.ts
 
@@ -77,7 +78,7 @@ var editor = new EditorJS({
     },
     header: Header
   },
-  initialBlock : 'text',
+  defaultBlock : 'text',
 });
 ```
 
@@ -87,6 +88,36 @@ There are few options available by Editor.js.
 | -- | -- | -- | -- |
 | `inlineToolbar` | _Boolean/Array_ | `false` | Pass `true` to enable the Inline Toolbar with all Tools, or pass an array with specified Tools list |
 | `config` | _Object_ | `null` | User's configuration for Plugin.
+
+## Tool prepare and reset
+
+If you need to prepare some data for Tool (eg. load external script, create HTML nodes in the document, etc) you can use static prepare method.
+
+It accepts tools config passed on Editor's initialization as an argument:
+
+```javascript
+class Tool {
+  static prepare(config) {
+    loadScript();
+    insertNodes();
+    ...
+  }
+}
+```
+
+On Editor destroy you can use an opposite method `reset` to clean up all prepared data:
+
+```javascript
+class Tool {
+  static reset() {
+    cleanUpScripts();
+    deleteNodes();
+    ...
+  }
+}
+```
+
+Both methods might be async.
 
 ## Paste handling
 
@@ -117,7 +148,7 @@ To handle pasted HTML elements object returned from `pasteConfig` getter should 
 | -- | -- | -- |
 | `tags` | `String[]` | _Optional_. Should contain all tag names you want to be extracted from pasted data and processed by your `onPaste` method |
 
-For correct work you MUST provide `onPaste` handler at least for `initialBlock` Tool.
+For correct work you MUST provide `onPaste` handler at least for `defaultBlock` Tool.
 
 > Example
 
@@ -143,7 +174,7 @@ Your Tool can analyze text by RegExp patterns to substitute pasted string with d
 
 **Note** Editor will check pattern's full match, so don't forget to handle all available chars in there.
 
-Pattern will be processed only if paste was on `initialBlock` Tool and pasted string length is less than 450 characters.
+Pattern will be processed only if paste was on `defaultBlock` Tool and pasted string length is less than 450 characters.
 
 > Example
 
@@ -228,14 +259,14 @@ onPaste (event) {
 
 ### Disable paste handling
 
-If you need to disable paste handling on your Tool for some reason, you can provide `false` as `pasteConfig` value. 
+If you need to disable paste handling on your Tool for some reason, you can provide `false` as `pasteConfig` value.
 That way paste event won't be processed if fired on your Tool:
 
 ```javascript
 static get pasteConfig {
   return false;
 }
-```  
+```
 
 ## Sanitize <a name="sanitize"></a>
 
@@ -364,7 +395,7 @@ Editor.js has a Conversion Toolbar that allows user to convert one Block to anot
 2. You can add ability to convert other Tools to your Tool. Specify «import» property of `conversionConfig`.
 
 Conversion Toolbar will be shown only near Blocks that specified an «export» rule, when user selected almost all block's content.
-This Toolbar will contain only Tools that specified an «import» rule. 
+This Toolbar will contain only Tools that specified an «import» rule.
 
 Example:
 
@@ -391,11 +422,11 @@ class Header {
 
 ### Your Tool -> other Tool
 
-The «export» field specifies how to represent your Tool's data as a string to pass it to other tool. 
+The «export» field specifies how to represent your Tool's data as a string to pass it to other tool.
 
 It can be a `String` or a `Function`.
 
-`String` means a key of your Tool data object that should be used as string to export. 
+`String` means a key of your Tool data object that should be used as string to export.
 
 `Function` is a method that accepts your Tool data and compose a string to export from it. See example below:
 
@@ -411,7 +442,7 @@ class ListTool {
       type: 'ordered'
     }
   }
-  
+
   static get conversionConfig() {
     return {
       export: (data) => {
@@ -425,11 +456,11 @@ class ListTool {
 
 ### Other Tool -> your Tool
 
-The «import» rule specifies how to create your Tool's data object from the string created by original block. 
+The «import» rule specifies how to create your Tool's data object from the string created by original block.
 
-It can be a `String` or a `Function`. 
+It can be a `String` or a `Function`.
 
-`String` means the key in tool data that will be filled by an exported string. 
+`String` means the key in tool data that will be filled by an exported string.
 For example, `import: 'text'` means that `constructor` of your block will accept a `data` object with `text` property filled with string composed by original block.
 
 `Function` allows you to specify own logic, how a string should be converted to your tool data. For example:
@@ -442,13 +473,13 @@ class ListTool {
       type: 'unordered'
     }
   }
-  
+
   static get conversionConfig() {
     return {
-      // ... export rule 
-      
+      // ... export rule
+
       /**
-       * In this example, List Tool creates items by splitting original text by a dot symbol. 
+       * In this example, List Tool creates items by splitting original text by a dot symbol.
        */
       import: (string) => {
         const items = string.split('.');
@@ -462,3 +493,22 @@ class ListTool {
   }
 }
 ```
+
+## Block Lifecycle hooks
+
+### `rendered()`
+
+Called after Block contents is added to the page
+
+### `updated()`
+
+Called each time Block contents is updated
+
+### `removed()`
+
+Called after Block contents is removed from the page but before Block instance deleted
+
+### `moved(MoveEvent)`
+
+Called after Block was moved. `MoveEvent` contains `fromIndex` and `toIndex`
+respectively.
